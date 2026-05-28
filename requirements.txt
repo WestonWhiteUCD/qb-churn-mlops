@@ -1,0 +1,10 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+faker
+snowflake-connector-python
+fastapi
+uvicorn
+python-dotenv
