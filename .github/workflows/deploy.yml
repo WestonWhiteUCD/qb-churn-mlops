@@ -1,6 +1,5 @@
 name: Deploy to EC2
 
-# Trigger: runs automatically on every push to main
 on:
   push:
     branches: [ main ]
@@ -10,26 +9,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      # Step 1 — Check out the latest code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Step 2 — Run tests before deploying
-      # If tests fail, deployment stops here
       - name: Run tests
         run: |
           pip install fastapi scikit-learn numpy pydantic pytest -q
           pytest tests/ -v
 
-      # Step 3 — SSH into EC2 and redeploy
-      # Pulls latest code, rebuilds Docker image, restarts container
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          host:     ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key:      ${{ secrets.EC2_KEY }}
+          host:            ${{ secrets.EC2_HOST }}
+          username:        ${{ secrets.EC2_USER }}
+          key:             ${{ secrets.EC2_KEY }}
+          port:            22
+          timeout:         60s
+          command_timeout: 10m
           script: |
             cd qb-churn-mlops
             git pull origin main
