@@ -9,14 +9,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1 — Checkout latest code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2 — Run unit tests
+      # All 5 tests must pass before deployment proceeds
+      # Tests verify: feature count, feature names, probability
+      # range, high risk scoring, and low risk scoring
       - name: Run tests
         run: |
           pip install fastapi scikit-learn numpy pydantic pytest -q
           pytest tests/ -v
 
+      # Step 3 — Deploy to EC2
+      # Requires EC2_HOST, EC2_USER, EC2_KEY secrets
+      # SSH into EC2, pull latest code, rebuild and restart container
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
