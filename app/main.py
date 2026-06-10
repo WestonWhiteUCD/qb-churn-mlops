@@ -1,12 +1,22 @@
-
 import pickle
 import numpy as np
+import logging
+import json
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+# ── Configure prediction logger ──────────────────────────────────
+# Writes one JSON line per prediction to predictions.log
+# CloudWatch agent ships this file to AWS in real time
+logging.basicConfig(level=logging.INFO)
+prediction_logger = logging.getLogger("predictions")
+file_handler = logging.FileHandler("/var/log/qb-churn-api/predictions.log")
+file_handler.setFormatter(logging.Formatter("%(message)s"))
+prediction_logger.addHandler(file_handler)
+prediction_logger.propagate = False
+
 # ── Load model artifacts on startup ─────────────────────────────
-# These load once when the server starts and stay in memory.
-# Much faster than reloading on every request.
 with open("app/model.pkl", "rb") as f:
     model = pickle.load(f)
 
@@ -24,18 +34,15 @@ app = FastAPI(
 )
 
 # ── Define what a customer record must look like ─────────────────
-# Pydantic validates every incoming request against this schema.
-# If a field is missing or the wrong type, FastAPI auto-rejects
-# the request with a clear error message before it touches the model.
 class CustomerFeatures(BaseModel):
-    monthly_price:          float   # subscription price in dollars
-    days_since_last_txn:    int     # days since last transaction
-    total_transactions:     int     # total number of transactions
-    total_spend:            float   # total spend in dollars
-    avg_transaction_amount: float   # average transaction amount
-    total_tickets:          int     # number of support tickets
+    monthly_price:          float
+    days_since_last_txn:    int
+    total_transactions:     int
+    total_spend:            float
+    avg_transaction_amount: float
+    total_tickets:          int
 
-# ── Define the risk tier based on probability ────────────────────
+# ── Define the risk tier ─────────────────────────────────────────
 def get_risk_tier(prob: float) -> str:
     if prob >= 0.70:
         return "HIGH"
@@ -45,25 +52,20 @@ def get_risk_tier(prob: float) -> str:
         return "LOW"
 
 # ── Health check endpoint ────────────────────────────────────────
-# GET /health — returns a simple status message.
-# Standard practice — monitoring systems ping this to confirm
-# the server is alive.
 @app.get("/health")
 def health():
     return {
-        "status": "healthy",
-        "model":  "LogisticRegression",
-        "auc":    0.941,
+        "status":   "healthy",
+        "model":    "LogisticRegression",
+        "auc":      0.941,
         "features": feature_cols
     }
 
 # ── Prediction endpoint ──────────────────────────────────────────
-# POST /predict — accepts a CustomerFeatures object,
-# runs it through the scaler and model, returns prediction.
 @app.post("/predict")
 def predict(customer: CustomerFeatures):
 
-    # Step 1: arrange features in the exact order the model expects
+    # Step 1: arrange features in correct order
     feature_values = [[
         customer.monthly_price,
         customer.days_since_last_txn,
@@ -73,16 +75,27 @@ def predict(customer: CustomerFeatures):
         customer.total_tickets,
     ]]
 
-    # Step 2: scale using the same scaler fitted during training
+    # Step 2: scale features
     scaled = scaler.transform(feature_values)
 
-    # Step 3: get churn probability (index 1 = probability of churned=True)
+    # Step 3: get churn probability
     churn_prob = model.predict_proba(scaled)[0][1]
+    risk_tier  = get_risk_tier(churn_prob)
 
-    # Step 4: return results
+    # Step 4: log prediction to CloudWatch
+    # Each line is a JSON object — easy to query in CloudWatch Insights
+    log_entry = {
+        "timestamp":        datetime.now(timezone.utc).isoformat(),
+        "churn_probability": round(float(churn_prob), 4),
+        "risk_tier":         risk_tier,
+        "inputs":            customer.dict(),
+    }
+    prediction_logger.info(json.dumps(log_entry))
+
+    # Step 5: return results
     return {
         "churn_probability": round(float(churn_prob), 4),
         "churn_percentage":  f"{churn_prob:.1%}",
-        "risk_tier":         get_risk_tier(churn_prob),
+        "risk_tier":         risk_tier,
         "input_received":    customer.dict(),
     }
