@@ -2,7 +2,7 @@
 
 A production ML system that extends the [QB Customer Intelligence](https://github.com/WestonWhiteUCD/qb-customer-intelligence) project from a research notebook into a fully deployed inference service.
 
-The original project built and evaluated a churn prediction model. This project ships it — replacing SQLite with Snowflake, wrapping the model in a REST API, containerizing with Docker, deploying to AWS EC2, and adding CI and monitoring.
+The original project built and evaluated a churn prediction model. This project ships it; replacing SQLite with Snowflake, wrapping the model in a REST API, containerizing with Docker, deploying to AWS EC2, and adding CI and monitoring.
 
 ---
 
@@ -100,7 +100,7 @@ qb-churn-mlops/
 
 **Features:** `monthly_price` · `days_since_last_txn` · `total_transactions` · `total_spend` · `avg_transaction_amount` · `total_tickets`
 
-Logistic Regression was chosen over Random Forest (AUC 0.942) for interpretability — each feature has an explicit coefficient — and lower false positive rate (2 vs 4), important for targeting retention interventions efficiently.
+Logistic Regression was chosen over Random Forest (AUC 0.942) for interpretability where each feature has an explicit coefficient and it had a lower false positive rate (2 vs 4), important for targeting retention interventions efficiently.
 
 ---
 
@@ -125,7 +125,7 @@ Every push to `main` triggers a GitHub Actions workflow that:
 
 1. Checks out the latest code on a fresh Ubuntu runner
 2. Installs dependencies
-3. Runs 5 pytest unit tests — verifying feature integrity, probability range, and directional correctness
+3. Runs 5 pytest unit tests where we were verifying feature integrity, probability range, and directional correctness
 4. Deploys to EC2 if all tests pass (SSH → git pull → docker rebuild → container restart)
 
 ---
